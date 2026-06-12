@@ -2,11 +2,15 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a2a6c">
 <title>سلة العائلة 🧺</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { overscroll-behavior:none; }
   body {
     font-family:'Cairo', Tahoma, sans-serif;
     background: linear-gradient(180deg, #1a2a6c 0%, #2a4d8f 50%, #3a6ea5 100%);
@@ -14,7 +18,9 @@
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     color:#fff;
     overflow-x:hidden;
+    touch-action:manipulation;
   }
+  body.playing-mobile { overflow:hidden; }
   h1.game-title {
     font-size:2.6rem; font-weight:900; margin:18px 0 4px;
     text-shadow:0 3px 12px rgba(0,0,0,.4);
@@ -94,6 +100,23 @@
   }
   #pauseOverlay small { font-size:1rem; font-weight:400; opacity:.8; }
 
+  /* ===== وضع الجوال: اللعبة ملء الشاشة ===== */
+  body.playing-mobile #gameWrap {
+    position:fixed; inset:0; z-index:50; background:#7ec8f7;
+  }
+  body.playing-mobile canvas {
+    max-width:none; border-radius:0; box-shadow:none;
+  }
+  body.playing-mobile #hud {
+    padding-top:calc(8px + env(safe-area-inset-top));
+    font-size:.95rem;
+  }
+  body.playing-mobile #pauseBtn {
+    bottom:calc(14px + env(safe-area-inset-bottom));
+    padding:10px 26px; font-size:1.1rem;
+  }
+  body.playing-mobile #pauseOverlay { border-radius:0; }
+
   /* ===== شاشة النهاية ===== */
   #overScreen {
     display:none; text-align:center; padding:30px;
@@ -123,7 +146,7 @@
   <h1 class="game-title">🧺 سلة العائلة</h1>
   <div class="subtitle">التقط الفواكه والهدايا، وابتعد عن القنابل! لكل لاعب ❤️❤️❤️ 3 قلوب فقط بدون تجديد. اختر فرداً من العائلة:</div>
   <div class="cards" id="cards"></div>
-  <div class="howto">🎮 التحكم: الأسهم ◀ ▶ أو حرّك الماوس &nbsp;|&nbsp; ⏸️ إيقاف مؤقت: مفتاح P</div>
+  <div class="howto">🎮 الكمبيوتر: الأسهم ◀ ▶ أو الماوس &nbsp;|&nbsp; 📱 الجوال: اسحب إصبعك على الشاشة &nbsp;|&nbsp; ⏸️ إيقاف: P</div>
 </div>
 
 <!-- اللعبة -->
@@ -202,8 +225,32 @@ const GOOD_ITEMS = [
 /* ====================== عناصر الصفحة ====================== */
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height;
-const GROUND_Y = H - 64;
+const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+let W = 960, H = 600, GROUND_Y = H - 64;
+
+/* مقاس اللوحة: ثابت على الكمبيوتر، وملء الشاشة على الجوال والتابلت */
+function fitCanvas() {
+  const mobilePlay = document.body.classList.contains('playing-mobile');
+  if (mobilePlay) {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    H = vw < vh ? 800 : 600;                                  // طولي أم عرضي
+    W = Math.max(340, Math.min(Math.round(H * vw / vh), 1400));
+    canvas.style.width = vw + 'px';
+    canvas.style.height = vh + 'px';
+  } else {
+    W = 960; H = 600;
+    canvas.style.width = '';
+    canvas.style.height = '';
+  }
+  GROUND_Y = H - 64;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (G) G.x = Math.max(G.char.w / 2, Math.min(W - G.char.w / 2, G.x));
+}
+window.addEventListener('resize', fitCanvas);
+window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 250));
 
 const menuEl   = document.getElementById('menu');
 const wrapEl   = document.getElementById('gameWrap');
@@ -237,6 +284,13 @@ for (const key of Object.keys(CHARACTERS)) {
 
 /* ====================== الصوت ====================== */
 let audioCtx = null;
+/* iOS لا يسمح بالصوت إلا بعد لمسة من المستخدم — نفعّله عند أول لمسة */
+function unlockAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch(e) {}
+}
 function beep(freq, dur, type='sine', vol=0.15) {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -262,6 +316,9 @@ let lastTime = 0;
 
 function startGame(key) {
   currentKey = key;
+  unlockAudio();
+  if (IS_TOUCH) document.body.classList.add('playing-mobile');
+  fitCanvas();
   const c = CHARACTERS[key];
   G = {
     char: c,
@@ -307,9 +364,26 @@ function pointerX(e) {
   const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
   return (clientX - r.left) * (W / r.width);
 }
-canvas.addEventListener('mousemove', e => { if (G) G.targetX = pointerX(e); });
-canvas.addEventListener('touchmove', e => { if (G) { G.targetX = pointerX(e); e.preventDefault(); } }, { passive:false });
-canvas.addEventListener('touchstart', e => { if (G) G.targetX = pointerX(e); }, { passive:true });
+canvas.addEventListener('mousemove', e => { if (G && !IS_TOUCH) G.targetX = pointerX(e); });
+
+/* تحكم اللمس: اسحب إصبعك في أي مكان على الشاشة والسلة تتبع حركتك
+   (قيادة نسبية — إصبعك ما يغطي الشخصية، والشخصيات السريعة أرشق هنا أيضاً) */
+let lastTouchX = null;
+canvas.addEventListener('touchstart', e => {
+  unlockAudio();
+  lastTouchX = pointerX(e);
+}, { passive:true });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!G || G.paused || G.over || lastTouchX === null) return;
+  const x = pointerX(e);
+  const sens = 1.3 * (G.char.speed / 420);
+  G.x += (x - lastTouchX) * sens;
+  G.x = Math.max(G.char.w / 2, Math.min(W - G.char.w / 2, G.x));
+  G.targetX = null;
+  lastTouchX = x;
+}, { passive:false });
+canvas.addEventListener('touchend', () => { lastTouchX = null; }, { passive:true });
 
 function togglePause() {
   if (!G || G.over) return;
@@ -324,6 +398,7 @@ document.getElementById('changeBtn').addEventListener('click', () => {
   overEl.style.display = 'none';
   wrapEl.style.display = 'none';
   menuEl.style.display = 'block';
+  document.body.classList.remove('playing-mobile');
   G = null;
 });
 
@@ -404,7 +479,7 @@ function update(dt) {
     }
 
     const inCatchZone = it.y >= catchTop && it.y <= GROUND_Y + 10;
-    const hit = inCatchZone && Math.abs(it.x - G.x) < c.w / 2 + 16;
+    const hit = inCatchZone && Math.abs(it.x - G.x) < c.w / 2 + (IS_TOUCH ? 26 : 16);
 
     if (hit) {
       G.items.splice(i, 1);
@@ -442,6 +517,7 @@ function update(dt) {
 
 function endGame() {
   G.over = true;
+  document.body.classList.remove('playing-mobile');
   sndOver();
   const bestKey = 'familyBasket_best_' + currentKey;
   const best = parseInt(localStorage.getItem(bestKey) || '0', 10);
@@ -550,7 +626,7 @@ function draw(dt) {
   // إعلان المستوى الجديد
   if (G.levelFlash > 0) {
     ctx.globalAlpha = Math.min(1, G.levelFlash);
-    ctx.font = '900 56px Cairo, sans-serif';
+    ctx.font = '900 ' + Math.min(56, Math.round(W * 0.12)) + 'px Cairo, sans-serif';
     ctx.fillStyle = '#ff6f00';
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 8;
@@ -568,6 +644,8 @@ function loop(now) {
   draw(dt);
   requestAnimationFrame(loop);
 }
+
+fitCanvas();
 </script>
 </body>
 </html>
