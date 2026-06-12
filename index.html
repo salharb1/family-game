@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سلة العائلة 🧺</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:'Cairo', Tahoma, sans-serif;
+    background: linear-gradient(180deg, #1a2a6c 0%, #2a4d8f 50%, #3a6ea5 100%);
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:#fff;
+    overflow-x:hidden;
+  }
+  h1.game-title {
+    font-size:2.6rem; font-weight:900; margin:18px 0 4px;
+    text-shadow:0 3px 12px rgba(0,0,0,.4);
+  }
+  .subtitle { opacity:.85; margin-bottom:20px; font-size:1.1rem; }
+
+  /* ===== شاشة اختيار الشخصية ===== */
+  #menu { text-align:center; padding:10px 16px 40px; max-width:1150px; }
+  .cards {
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(195px, 1fr));
+    gap:14px; margin-top:8px;
+  }
+  .card {
+    background:rgba(255,255,255,.10);
+    border:2px solid rgba(255,255,255,.25);
+    border-radius:20px; padding:18px 14px;
+    cursor:pointer; transition:.2s;
+    backdrop-filter:blur(6px);
+  }
+  .card:hover {
+    transform:translateY(-6px) scale(1.03);
+    background:rgba(255,255,255,.2);
+    border-color:#ffd54f;
+    box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  .card .avatar { font-size:4rem; line-height:1.2; }
+  .card .cname { font-size:1.5rem; font-weight:900; margin-top:4px; }
+  .card .role { color:#ffd54f; font-weight:700; font-size:.95rem; }
+  .card .perk {
+    display:inline-block; margin-top:8px; padding:3px 12px;
+    background:rgba(255,213,79,.2); border:1px solid #ffd54f;
+    border-radius:999px; font-size:.85rem; font-weight:700; color:#ffe082;
+  }
+  .card .desc { font-size:.85rem; opacity:.85; margin-top:8px; min-height:3em; }
+  .stats { margin-top:10px; text-align:right; font-size:.78rem; }
+  .stat-row { display:flex; align-items:center; gap:6px; margin-top:3px; }
+  .stat-row span:first-child { width:52px; opacity:.8; }
+  .bar { flex:1; height:8px; background:rgba(0,0,0,.3); border-radius:99px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:linear-gradient(90deg,#66bb6a,#ffd54f); border-radius:99px; }
+  .hearts-stat { letter-spacing:2px; }
+  .howto {
+    margin-top:22px; font-size:.95rem; opacity:.85;
+    background:rgba(0,0,0,.2); display:inline-block;
+    padding:10px 22px; border-radius:14px;
+  }
+
+  /* ===== اللعبة ===== */
+  #gameWrap { display:none; position:relative; }
+  canvas {
+    border-radius:18px;
+    box-shadow:0 12px 40px rgba(0,0,0,.5);
+    display:block;
+    max-width:96vw; height:auto;
+    touch-action:none;
+  }
+  #hud {
+    position:absolute; top:0; right:0; left:0;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 18px; pointer-events:none;
+    font-weight:900; font-size:1.15rem;
+    text-shadow:0 2px 6px rgba(0,0,0,.6);
+  }
+  #hud .pill {
+    background:rgba(0,0,0,.35); border-radius:999px; padding:3px 16px;
+  }
+  #pauseBtn {
+    position:absolute; bottom:12px; left:14px;
+    background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.4);
+    color:#fff; border-radius:999px; padding:5px 18px;
+    font-family:inherit; font-weight:700; font-size:1rem; cursor:pointer;
+  }
+  #pauseOverlay {
+    position:absolute; inset:0; display:none;
+    align-items:center; justify-content:center; flex-direction:column;
+    background:rgba(0,0,0,.55); border-radius:18px;
+    font-size:2rem; font-weight:900; gap:8px;
+  }
+  #pauseOverlay small { font-size:1rem; font-weight:400; opacity:.8; }
+
+  /* ===== شاشة النهاية ===== */
+  #overScreen {
+    display:none; text-align:center; padding:30px;
+    background:rgba(255,255,255,.1); border-radius:24px;
+    border:2px solid rgba(255,255,255,.25);
+    backdrop-filter:blur(8px);
+    max-width:420px;
+  }
+  #overScreen .big-emoji { font-size:4.5rem; }
+  #overScreen h2 { font-size:2rem; font-weight:900; margin:6px 0; }
+  #overScreen .score-line { font-size:1.3rem; margin:4px 0; }
+  #overScreen .best { color:#ffd54f; font-weight:700; }
+  .btn {
+    font-family:inherit; font-size:1.1rem; font-weight:900;
+    border:none; border-radius:14px; padding:12px 26px;
+    margin:14px 6px 0; cursor:pointer; transition:.15s;
+  }
+  .btn:hover { transform:scale(1.05); }
+  .btn-play { background:#ffd54f; color:#5d4000; }
+  .btn-change { background:rgba(255,255,255,.2); color:#fff; border:1px solid rgba(255,255,255,.5); }
+</style>
+</head>
+<body>
+
+<!-- شاشة اختيار الشخصية -->
+<div id="menu">
+  <h1 class="game-title">🧺 سلة العائلة</h1>
+  <div class="subtitle">التقط الفواكه والهدايا، وابتعد عن القنابل! لكل لاعب ❤️❤️❤️ 3 قلوب فقط بدون تجديد. اختر فرداً من العائلة:</div>
+  <div class="cards" id="cards"></div>
+  <div class="howto">🎮 التحكم: الأسهم ◀ ▶ أو حرّك الماوس &nbsp;|&nbsp; ⏸️ إيقاف مؤقت: مفتاح P</div>
+</div>
+
+<!-- اللعبة -->
+<div id="gameWrap">
+  <canvas id="game" width="960" height="600"></canvas>
+  <div id="hud">
+    <span class="pill" id="hudChar"></span>
+    <span class="pill" id="hudScore"></span>
+    <span class="pill" id="hudLevel"></span>
+    <span class="pill" id="hudLives"></span>
+  </div>
+  <button id="pauseBtn">⏸️ إيقاف</button>
+  <div id="pauseOverlay">⏸️ توقّف مؤقت<small>اضغط P أو زر الاستئناف للمتابعة</small></div>
+</div>
+
+<!-- شاشة النهاية -->
+<div id="overScreen">
+  <div class="big-emoji" id="overEmoji">🏆</div>
+  <h2 id="overTitle">انتهت اللعبة!</h2>
+  <div class="score-line">نقاطك: <b id="finalScore">0</b></div>
+  <div class="score-line best" id="bestLine"></div>
+  <div id="newRecord" style="display:none; color:#69f0ae; font-weight:900; font-size:1.2rem; margin-top:6px;">🎉 رقم قياسي جديد!</div>
+  <button class="btn btn-play" id="replayBtn">🔄 العب مرة أخرى</button>
+  <button class="btn btn-change" id="changeBtn">👨‍👩‍👧‍👦 تغيير الشخصية</button>
+</div>
+
+<script>
+'use strict';
+
+/* ====================== الشخصيات ====================== */
+const CHARACTERS = {
+  saleh: {
+    name:'صالح', role:'الأب', emoji:'🧔🏻‍♂️',
+    w:130, speed:300, lives:3,
+    perk:'🧺 سلة عملاقة',
+    desc:'بحكمة الأب وهدوئه، سلته الكبيرة تلقط كل شيء يقع قربه',
+    speedBar:40, sizeBar:100,
+  },
+  basma: {
+    name:'بسمة', role:'الأم', emoji:'👩🏻',
+    w:88, speed:400, lives:3, magnet:true,
+    perk:'🧲 قلب الأم يجذب الخير',
+    desc:'بحنان الأم، الفواكه والهدايا القريبة تنجذب نحو سلتها من نفسها',
+    speedBar:62, sizeBar:62,
+  },
+  saba: {
+    name:'صبا', role:'البنت الكبرى', emoji:'💁🏻‍♀️',
+    w:90, speed:420, lives:3, starX2:true,
+    perk:'⭐ النجوم ×2',
+    desc:'مراهقة بشعرها الأسود الطويل، منظمة وذكية — كل نجمة تلقطها بنقاط مضاعفة',
+    speedBar:65, sizeBar:65,
+  },
+  rua: {
+    name:'رؤى', role:'البنت الوسطى', emoji:'👧🏻',
+    w:78, speed:500, lives:3, lessBombs:true,
+    perk:'🛡️ قنابل أقل',
+    desc:'سريعة البديهة، القنابل تظهر في طريقها أقل من الجميع',
+    speedBar:82, sizeBar:50,
+  },
+  abdullah: {
+    name:'عبدالله', role:'الولد الصغير', emoji:'👦🏻',
+    w:66, speed:580, lives:3,
+    perk:'⚡ سرعة خارقة',
+    desc:'أسرع واحد في البيت! صغير لكن عنده طاقة لا تنتهي',
+    speedBar:100, sizeBar:38,
+  },
+};
+
+const GOOD_ITEMS = [
+  { e:'🍎', p:10 }, { e:'🍌', p:10 }, { e:'🍊', p:10 },
+  { e:'🍇', p:15 }, { e:'🍉', p:15 },
+  { e:'⭐', p:25, star:true },
+  { e:'🎁', p:30 },
+];
+
+/* ====================== عناصر الصفحة ====================== */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const GROUND_Y = H - 64;
+
+const menuEl   = document.getElementById('menu');
+const wrapEl   = document.getElementById('gameWrap');
+const overEl   = document.getElementById('overScreen');
+const hudChar  = document.getElementById('hudChar');
+const hudScore = document.getElementById('hudScore');
+const hudLevel = document.getElementById('hudLevel');
+const hudLives = document.getElementById('hudLives');
+const pauseBtn = document.getElementById('pauseBtn');
+const pauseOverlay = document.getElementById('pauseOverlay');
+
+/* ====================== بطاقات الاختيار ====================== */
+const cardsEl = document.getElementById('cards');
+for (const key of Object.keys(CHARACTERS)) {
+  const c = CHARACTERS[key];
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="avatar">${c.emoji}</div>
+    <div class="cname">${c.name}</div>
+    <div class="role">${c.role}</div>
+    <div><span class="perk">${c.perk}</span></div>
+    <div class="desc">${c.desc}</div>
+    <div class="stats">
+      <div class="stat-row"><span>السرعة</span><div class="bar"><i style="width:${c.speedBar}%"></i></div></div>
+      <div class="stat-row"><span>السلة</span><div class="bar"><i style="width:${c.sizeBar}%"></i></div></div>
+    </div>`;
+  card.addEventListener('click', () => startGame(key));
+  cardsEl.appendChild(card);
+}
+
+/* ====================== الصوت ====================== */
+let audioCtx = null;
+function beep(freq, dur, type='sine', vol=0.15) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch(e) {}
+}
+const sndCatch   = () => beep(880, 0.12, 'sine');
+const sndStar    = () => { beep(988, 0.1); setTimeout(()=>beep(1319, 0.15), 90); };
+const sndBomb    = () => beep(140, 0.4, 'sawtooth', 0.2);
+const sndLevelUp = () => [523, 659, 784, 1047].forEach((f,i)=>setTimeout(()=>beep(f, 0.14), i*110));
+const sndOver    = () => [400, 320, 250, 180].forEach((f,i)=>setTimeout(()=>beep(f, 0.25, 'triangle'), i*180));
+
+/* ====================== حالة اللعبة ====================== */
+let G = null;          // كائن الجولة الحالية
+let currentKey = null; // مفتاح الشخصية المختارة
+let running = false;
+let lastTime = 0;
+
+function startGame(key) {
+  currentKey = key;
+  const c = CHARACTERS[key];
+  G = {
+    char: c,
+    x: W / 2,
+    targetX: null,
+    score: 0,
+    lives: c.lives,
+    level: 1,
+    items: [],
+    floaters: [],
+    spawnTimer: 0.5,
+    flashRed: 0,
+    levelFlash: 0,
+    paused: false,
+    over: false,
+  };
+  menuEl.style.display = 'none';
+  overEl.style.display = 'none';
+  wrapEl.style.display = 'block';
+  pauseOverlay.style.display = 'none';
+  updateHUD();
+  if (!running) { running = true; lastTime = performance.now(); requestAnimationFrame(loop); }
+}
+
+function updateHUD() {
+  hudChar.textContent  = `${G.char.emoji} ${G.char.name}`;
+  hudScore.textContent = `النقاط: ${G.score}`;
+  hudLevel.textContent = `المستوى ${G.level}`;
+  hudLives.textContent = '❤️'.repeat(Math.max(0, G.lives));
+}
+
+/* ====================== التحكم ====================== */
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if ((e.key === 'p' || e.key === 'P' || e.key === 'ح') && G && !G.over) togglePause();
+  if (e.key.startsWith('Arrow')) e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+function pointerX(e) {
+  const r = canvas.getBoundingClientRect();
+  const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
+  return (clientX - r.left) * (W / r.width);
+}
+canvas.addEventListener('mousemove', e => { if (G) G.targetX = pointerX(e); });
+canvas.addEventListener('touchmove', e => { if (G) { G.targetX = pointerX(e); e.preventDefault(); } }, { passive:false });
+canvas.addEventListener('touchstart', e => { if (G) G.targetX = pointerX(e); }, { passive:true });
+
+function togglePause() {
+  if (!G || G.over) return;
+  G.paused = !G.paused;
+  pauseOverlay.style.display = G.paused ? 'flex' : 'none';
+  pauseBtn.textContent = G.paused ? '▶️ استئناف' : '⏸️ إيقاف';
+}
+pauseBtn.addEventListener('click', togglePause);
+
+document.getElementById('replayBtn').addEventListener('click', () => startGame(currentKey));
+document.getElementById('changeBtn').addEventListener('click', () => {
+  overEl.style.display = 'none';
+  wrapEl.style.display = 'none';
+  menuEl.style.display = 'block';
+  G = null;
+});
+
+/* ====================== منطق اللعبة ====================== */
+function difficulty() {
+  // كل 200 نقطة = مستوى جديد
+  const level = Math.floor(G.score / 200) + 1;
+  return {
+    level,
+    spawnInterval: Math.max(0.32, 0.95 - (level - 1) * 0.08),
+    fallSpeed: 170 + (level - 1) * 38,
+  };
+}
+
+function spawnItem(diff) {
+  const r = Math.random();
+  let bombChance = Math.min(0.13 + (diff.level - 1) * 0.022, 0.30);
+  if (G.char.lessBombs) bombChance *= 0.55;
+
+  let item;
+  if (r < bombChance) {
+    item = { e:'💣', bomb:true };
+  } else {
+    item = Object.assign({}, GOOD_ITEMS[Math.floor(Math.random() * GOOD_ITEMS.length)]);
+  }
+  item.x = 40 + Math.random() * (W - 80);
+  item.y = -30;
+  item.vy = diff.fallSpeed * (0.8 + Math.random() * 0.5);
+  item.spin = (Math.random() - 0.5) * 4;
+  item.angle = 0;
+  G.items.push(item);
+}
+
+function addFloater(x, y, text, color) {
+  G.floaters.push({ x, y, text, color, t: 0 });
+}
+
+function update(dt) {
+  const diff = difficulty();
+  if (diff.level !== G.level) {
+    G.level = diff.level;
+    G.levelFlash = 1.6;
+    sndLevelUp();
+    updateHUD();
+  }
+
+  // حركة اللاعب
+  const c = G.char;
+  if (keys['ArrowLeft'])  { G.x -= c.speed * dt; G.targetX = null; }
+  if (keys['ArrowRight']) { G.x += c.speed * dt; G.targetX = null; }
+  if (G.targetX !== null) {
+    const d = G.targetX - G.x;
+    const step = c.speed * dt;
+    G.x += Math.abs(d) <= step ? d : Math.sign(d) * step;
+  }
+  G.x = Math.max(c.w / 2, Math.min(W - c.w / 2, G.x));
+
+  // توليد العناصر
+  G.spawnTimer -= dt;
+  if (G.spawnTimer <= 0) {
+    spawnItem(diff);
+    G.spawnTimer = diff.spawnInterval;
+  }
+
+  // تحريك العناصر والتصادم
+  const catchTop = GROUND_Y - 78;
+  for (let i = G.items.length - 1; i >= 0; i--) {
+    const it = G.items[i];
+    it.y += it.vy * dt;
+    it.angle += it.spin * dt;
+
+    // 🧲 قدرة بسمة: الخير القريب ينجذب نحو سلتها
+    if (c.magnet && !it.bomb && it.y > H * 0.45) {
+      const dx = G.x - it.x;
+      if (Math.abs(dx) < 160) {
+        it.x += Math.sign(dx) * Math.min(Math.abs(dx), 150 * dt);
+      }
+    }
+
+    const inCatchZone = it.y >= catchTop && it.y <= GROUND_Y + 10;
+    const hit = inCatchZone && Math.abs(it.x - G.x) < c.w / 2 + 16;
+
+    if (hit) {
+      G.items.splice(i, 1);
+      if (it.bomb) {
+        G.lives--;
+        G.flashRed = 0.5;
+        sndBomb();
+        addFloater(it.x, it.y, '💥', '#ff5252');
+        if (G.lives <= 0) { endGame(); return; }
+      } else {
+        let pts = it.p;
+        if (it.star && c.starX2) { pts *= 2; sndStar(); }
+        else if (it.star) sndStar();
+        else sndCatch();
+        G.score += pts;
+        addFloater(it.x, it.y, '+' + pts, it.star ? '#ffd54f' : '#69f0ae');
+      }
+      updateHUD();
+    } else if (it.y > H + 40) {
+      G.items.splice(i, 1);
+    }
+  }
+
+  // النصوص الطائرة
+  for (let i = G.floaters.length - 1; i >= 0; i--) {
+    const f = G.floaters[i];
+    f.t += dt;
+    f.y -= 60 * dt;
+    if (f.t > 0.9) G.floaters.splice(i, 1);
+  }
+
+  if (G.flashRed > 0) G.flashRed -= dt;
+  if (G.levelFlash > 0) G.levelFlash -= dt;
+}
+
+function endGame() {
+  G.over = true;
+  sndOver();
+  const bestKey = 'familyBasket_best_' + currentKey;
+  const best = parseInt(localStorage.getItem(bestKey) || '0', 10);
+  const isRecord = G.score > best;
+  if (isRecord) localStorage.setItem(bestKey, String(G.score));
+
+  document.getElementById('overEmoji').textContent = isRecord ? '🏆' : G.char.emoji;
+  document.getElementById('overTitle').textContent = isRecord ? 'مبروك يا ' + G.char.name + '!' : 'انتهت الجولة!';
+  document.getElementById('finalScore').textContent = G.score;
+  document.getElementById('bestLine').textContent =
+    'أفضل نتيجة لـ' + G.char.name + ': ' + Math.max(best, G.score);
+  document.getElementById('newRecord').style.display = isRecord ? 'block' : 'none';
+
+  wrapEl.style.display = 'none';
+  overEl.style.display = 'block';
+}
+
+/* ====================== الرسم ====================== */
+const clouds = [
+  { x: 120, y: 90,  s: 1.0, v: 14 },
+  { x: 480, y: 60,  s: 1.4, v: 9  },
+  { x: 760, y: 130, s: 0.8, v: 18 },
+];
+
+function draw(dt) {
+  // السماء
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#7ec8f7');
+  sky.addColorStop(0.7, '#bde6ff');
+  sky.addColorStop(1, '#dff3ff');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  // شمس
+  ctx.font = '54px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('☀️', W - 80, 80);
+
+  // غيوم متحركة
+  for (const cl of clouds) {
+    if (!G || !G.paused) cl.x += cl.v * dt;
+    if (cl.x > W + 80) cl.x = -80;
+    ctx.font = (44 * cl.s) + 'px serif';
+    ctx.fillText('☁️', cl.x, cl.y);
+  }
+
+  // الأرض
+  ctx.fillStyle = '#7cb342';
+  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  ctx.fillStyle = '#689f38';
+  ctx.fillRect(0, GROUND_Y, W, 8);
+
+  if (!G) return;
+  const c = G.char;
+
+  // العناصر المتساقطة
+  for (const it of G.items) {
+    ctx.save();
+    ctx.translate(it.x, it.y);
+    ctx.rotate(it.angle * 0.3);
+    ctx.font = '36px serif';
+    ctx.fillText(it.e, 0, 12);
+    ctx.restore();
+  }
+
+  // اللاعب: الشخصية + السلة
+  ctx.font = '52px serif';
+  ctx.fillText(c.emoji, G.x, GROUND_Y - 52);
+  // السلة (عرضها = منطقة الالتقاط الفعلية)
+  const bw = c.w, bh = 26;
+  const bx = G.x - bw / 2, by = GROUND_Y - 40;
+  ctx.fillStyle = '#a1672b';
+  ctx.beginPath();
+  ctx.moveTo(bx, by);
+  ctx.lineTo(bx + bw, by);
+  ctx.lineTo(bx + bw - 10, by + bh);
+  ctx.lineTo(bx + 10, by + bh);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#7a4a1d';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  // خطوط نسيج السلة
+  ctx.strokeStyle = 'rgba(122,74,29,.6)';
+  ctx.lineWidth = 1.5;
+  for (let i = 1; i <= 3; i++) {
+    const ly = by + (bh / 4) * i;
+    ctx.beginPath(); ctx.moveTo(bx + 6, ly); ctx.lineTo(bx + bw - 6, ly); ctx.stroke();
+  }
+
+  // النصوص الطائرة
+  for (const f of G.floaters) {
+    ctx.globalAlpha = Math.max(0, 1 - f.t / 0.9);
+    ctx.font = '900 26px Cairo, sans-serif';
+    ctx.fillStyle = f.color;
+    ctx.fillText(f.text, f.x, f.y);
+    ctx.globalAlpha = 1;
+  }
+
+  // وميض أحمر عند القنبلة
+  if (G.flashRed > 0) {
+    ctx.fillStyle = `rgba(255,0,0,${G.flashRed * 0.45})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // إعلان المستوى الجديد
+  if (G.levelFlash > 0) {
+    ctx.globalAlpha = Math.min(1, G.levelFlash);
+    ctx.font = '900 56px Cairo, sans-serif';
+    ctx.fillStyle = '#ff6f00';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 8;
+    ctx.strokeText('المستوى ' + G.level + '!', W / 2, H / 2 - 40);
+    ctx.fillText('المستوى ' + G.level + '!', W / 2, H / 2 - 40);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ====================== الحلقة الرئيسية ====================== */
+function loop(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  if (G && !G.paused && !G.over) update(dt);
+  draw(dt);
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
